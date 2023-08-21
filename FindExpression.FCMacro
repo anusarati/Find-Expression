@@ -61,7 +61,7 @@ matches = findExpression(expressionName)
 timeTaken = (time_ns() - time0) / 1e9
 print(f"Search completed in {timeTaken} seconds")
 
-result = str(matches).strip("[]") if matches else "Expression not found."
+result = "\n".join(matches) if matches else "Expression not found."
 
 messageBox = QMessageBox()
 messageBox.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
