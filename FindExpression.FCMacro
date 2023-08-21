@@ -1,0 +1,78 @@
+# 0-BSD
+import re
+from time import time_ns
+# thanks to Gaël Ecorchard for https://wiki.freecad.org/Macro_MessageBox
+from PySide2 import QtCore
+from PySide2.QtWidgets import QWidget, QInputDialog, QMessageBox
+
+def getObjectPath(object):
+    hierarchy = [object.Label]
+    # add containers
+    while bool(object.InList):
+        object = object.InList[0]
+        hierarchy.append(object.Label)
+    return ".".join([str(object) for object in reversed(hierarchy)])
+        
+
+def findExpressionInSpreadsheet(spreadsheet, name):
+    matches = set()
+    basePath = getObjectPath(spreadsheet) + "."
+    nameRegex = re.escape(name)
+    for propertyName in spreadsheet.PropertiesList:
+        # get cell names
+        if re.fullmatch(r"[A-Z]\d+", propertyName):
+            content = spreadsheet.getContents(propertyName)
+            if content[0] == "=" and re.search(nameRegex, content):
+                matches.add(basePath + propertyName)
+    return matches
+
+
+def updateMatches(matches, object, name, visited):
+    if object in visited:
+        return
+    visited.add(object)
+    if object.TypeId == "Spreadsheet::Sheet":
+        matches.update(findExpressionInSpreadsheet(object, name))
+    else:
+        matches.update(findExpressionIn(object, name, visited))
+
+
+def findExpressionIn(object, name, visited):
+    matches = set()
+    for expression in object.ExpressionEngine:
+        if expression[1] == name:
+            matches.add(getObjectPath(object) + "." + expression[0])
+    # search in constituents
+    for referenced in object.OutList:
+        updateMatches(matches, referenced, name, visited)
+    return matches
+            
+
+def findExpression(name):
+    matches = set()
+    visited = set()
+    for object in App.ActiveDocument.RootObjects:
+        updateMatches(matches, object, name, visited)
+    return matches
+
+widget = QWidget()
+dialog = QInputDialog()
+
+expressionName = dialog.getText(widget, "Find expression", "Enter an expression")[0]
+
+# add brackets
+expressionName = re.sub(r"^(?<!<<)([^<>.]+)(?!>>)", r"<<\1>>", expressionName)
+
+time0 = time_ns()
+
+matches = findExpression(expressionName)
+
+timeTaken = (time_ns() - time0) / 1e9
+print(f"Search completed in {timeTaken} seconds")
+
+result = str(matches).strip("{}") if matches else "Expression not found."
+
+messageBox = QMessageBox()
+messageBox.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+messageBox.setText(result)
+messageBox.exec_()
