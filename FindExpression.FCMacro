@@ -14,8 +14,7 @@ def getObjectPath(object):
     return ".".join([str(object) for object in reversed(hierarchy)])
         
 
-def findExpressionInSpreadsheet(spreadsheet, name):
-    matches = set()
+def findExpressionInSpreadsheet(spreadsheet, name, matches):
     basePath = getObjectPath(spreadsheet) + "."
     nameRegex = re.escape(name)
     for propertyName in spreadsheet.PropertiesList:
@@ -23,36 +22,28 @@ def findExpressionInSpreadsheet(spreadsheet, name):
         if re.fullmatch(r"[A-Z]\d+", propertyName):
             content = spreadsheet.getContents(propertyName)
             if content[0] == "=" and re.search(nameRegex, content):
-                matches.add(basePath + propertyName)
+                matches.append(basePath + propertyName)
     return matches
 
 
-def updateMatches(matches, object, name, visited):
-    if object in visited:
-        return
-    visited.add(object)
+def updateMatches(matches, object, name):
     if object.TypeId == "Spreadsheet::Sheet":
-        matches.update(findExpressionInSpreadsheet(object, name))
+        findExpressionInSpreadsheet(object, name, matches)
     else:
-        matches.update(findExpressionIn(object, name, visited))
+        findExpressionIn(object, name, matches)
 
 
-def findExpressionIn(object, name, visited):
-    matches = set()
+def findExpressionIn(object, name, matches):
     for expression in object.ExpressionEngine:
         if expression[1] == name:
-            matches.add(getObjectPath(object) + "." + expression[0])
-    # search in constituents
-    for referenced in object.OutList:
-        updateMatches(matches, referenced, name, visited)
+            matches.append(getObjectPath(object) + "." + expression[0])
     return matches
             
 
 def findExpression(name):
-    matches = set()
-    visited = set()
-    for object in App.ActiveDocument.RootObjects:
-        updateMatches(matches, object, name, visited)
+    matches = []
+    for object in App.ActiveDocument.Objects:
+        updateMatches(matches, object, name)
     return matches
 
 widget = QWidget()
@@ -70,7 +61,7 @@ matches = findExpression(expressionName)
 timeTaken = (time_ns() - time0) / 1e9
 print(f"Search completed in {timeTaken} seconds")
 
-result = str(matches).strip("{}") if matches else "Expression not found."
+result = str(matches).strip("[]") if matches else "Expression not found."
 
 messageBox = QMessageBox()
 messageBox.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
