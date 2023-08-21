@@ -3,4 +3,4 @@ FreeCAD macro to find where an expression is used in the document
 
 ![prompt](prompt.png)
 
-![output](output.png)
+![example with expression](example.png) ![output](output.png)
