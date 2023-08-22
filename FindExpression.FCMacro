@@ -14,15 +14,32 @@ def getObjectPath(object):
     return ".".join([str(object) for object in reversed(hierarchy)])
         
 
+def bracket(name):
+    """Add <<>> brackets to a name"""
+    return re.sub(r"^(?<!<<)([^<>.]+)(?!>>)", r"<<\1>>", name)
+
+def unbracket(name):
+    """Remove <<>> brackets from a name"""
+    return re.sub(r"^<<([^<>.]+)>>", r"\1", name)
+
 def findExpressionInSpreadsheet(spreadsheet, name, matches):
     basePath = getObjectPath(spreadsheet) + "."
+    name = unbracket(name)
+    baseObjectMatch = re.match(r"[^.]+", name)
+    baseObject = baseObjectMatch.group()
+
+    # doesn't account for spreadsheets labeled with the name of another
+    if baseObject in [spreadsheet.Name, spreadsheet.Label]:
+        name = name[baseObjectMatch.end() + 1:]
+
     nameRegex = re.escape(name)
     for propertyName in spreadsheet.PropertiesList:
         # get cell names
         if re.fullmatch(r"[A-Z]\d+", propertyName):
             content = spreadsheet.getContents(propertyName)
-            if content[0] == "=" and re.search(nameRegex, content):
+            if content[0] == "=" and re.search(nameRegex, unbracket(content)):
                 matches.append(basePath + propertyName)
+
     return matches
 
 
@@ -52,7 +69,7 @@ dialog = QInputDialog()
 expressionName = dialog.getText(widget, "Find expression", "Enter an expression")[0]
 
 # add brackets
-expressionName = re.sub(r"^(?<!<<)([^<>.]+)(?!>>)", r"<<\1>>", expressionName)
+expressionName = bracket(expressionName)
 
 time0 = time_ns()
 
